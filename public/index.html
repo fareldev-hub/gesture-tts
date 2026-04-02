@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gesture Detector</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>Gesture Detector</h1>
+            <p class="subtitle">Deteksi gerakan tangan real-time</p>
+        </header>
+        
+        <main class="main">
+            <div class="camera-box">
+                <div class="video-wrapper">
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    <div class="camera-placeholder" id="placeholder">
+                        <span>Kamera mati</span>
+                    </div>
+                </div>
+                
+                <div class="camera-controls">
+                    <button class="btn btn-primary" id="startBtn">Mulai</button>
+                    <button class="btn btn-danger hidden" id="stopBtn">Stop</button>
+                    <button class="btn btn-secondary" id="switchBtn">Ganti Kamera</button>
+                </div>
+            </div>
+            
+            <div class="result-box">
+                <div class="gesture-display" id="gestureDisplay">
+                    <span class="gesture-emoji" id="gestureEmoji">✋</span>
+                    <span class="gesture-label" id="gestureLabel">Siap</span>
+                </div>
+                
+                <div class="settings">
+                    <label class="toggle">
+                        <input type="checkbox" id="ttsCheck" checked>
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Suara</span>
+                    </label>
+                </div>
+            </div>
+        </main>
+        
+        <section class="gestures">
+            <h2>Daftar Gesture</h2>
+            <div class="gesture-grid" id="gestureGrid">
+                <div class="gesture-item" data-gesture="SHAKA">
+                    <span class="emoji">🤙</span>
+                    <span class="name">Call Me</span>
+                </div>
+                <div class="gesture-item" data-gesture="PALM">
+                    <span class="emoji">🖐</span>
+                    <span class="name">Halo</span>
+                </div>
+                <div class="gesture-item" data-gesture="STOP">
+                    <span class="emoji">✋</span>
+                    <span class="name">Stop</span>
+                </div>
+                <div class="gesture-item" data-gesture="OK">
+                    <span class="emoji">👌</span>
+                    <span class="name">OK</span>
+                </div>
+                <div class="gesture-item" data-gesture="THUMBS_UP">
+                    <span class="emoji">👍</span>
+                    <span class="name">Bagus</span>
+                </div>
+                <div class="gesture-item" data-gesture="THUMBS_DOWN">
+                    <span class="emoji">👎</span>
+                    <span class="name">Buruk</span>
+                </div>
+                <div class="gesture-item" data-gesture="PEACE">
+                    <span class="emoji">✌️</span>
+                    <span class="name">Peace</span>
+                </div>
+                <div class="gesture-item" data-gesture="POINTING">
+                    <span class="emoji">☝️</span>
+                    <span class="name">Tunjuk</span>
+                </div>
+                <div class="gesture-item" data-gesture="FIST">
+                    <span class="emoji">✊</span>
+                    <span class="name">Semangat</span>
+                </div>
+                <div class="gesture-item" data-gesture="LOVE_YOU">
+                    <span class="emoji">🤟</span>
+                    <span class="name">Love</span>
+                </div>
+            </div>
+        </section>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Memuat model AI...</p>
+            <p class="error-text hidden" id="errorText"></p>
+            <button class="btn btn-primary hidden" id="retryBtn" style="margin-top: 15px;">Coba Lagi</button>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.1.0/dist/handpose.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
