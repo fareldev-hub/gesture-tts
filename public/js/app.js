@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let socket = null;
 
     const gestureData = {
-        'SHAKA': { emoji: '🤙', label: 'Call Me', speak: 'Call Me' },
+        'SHAKA': { emoji: '🤙', label: 'Call Me Farel', speak: 'Call Me Farel' },
         'PALM': { emoji: '🖐', label: 'Halo', speak: 'Halo' },
         'STOP': { emoji: '✋', label: 'Stop', speak: 'Stop' },
         'OK': { emoji: '👌', label: 'OK', speak: 'Oke' },
@@ -40,10 +40,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!isRunning || !detector) return;
         
         try {
-            // Clear canvas first
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw video frame
+
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             const predictions = await detector.estimateHands(video, false);
@@ -54,7 +52,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 statusText.style.color = '#00ff00';
                 const landmarks = predictions[0].landmarks;
                 
-                // Scale factor for coordinates (assuming video is scaled to fit canvas)
                 const scaleX = canvas.width / video.videoWidth;
                 const scaleY = canvas.height / video.videoHeight;
                 
