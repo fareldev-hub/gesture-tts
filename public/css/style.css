@@ -68,6 +68,11 @@ video, canvas {
     transform: scaleX(-1);
 }
 
+canvas {
+    pointer-events: none;
+    z-index: 1;
+}
+
 .camera-placeholder {
     position: absolute;
     top: 0;

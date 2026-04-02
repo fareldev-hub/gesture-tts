@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const gestureEmoji = document.getElementById('gestureEmoji');
     const gestureLabel = document.getElementById('gestureLabel');
     const ttsCheck = document.getElementById('ttsCheck');
+    const statusText = document.getElementById('statusText');
 
     let detector = null;
     let isRunning = false;
@@ -39,30 +40,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!isRunning || !detector) return;
         
         try {
+            // Clear canvas first
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw video frame
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
             const predictions = await detector.estimateHands(video, false);
             
             if (predictions.length > 0) {
+                console.log('Hand detected with', predictions[0].landmarks.length, 'landmarks');
+                statusText.textContent = 'Tangan terdeteksi';
+                statusText.style.color = '#00ff00';
                 const landmarks = predictions[0].landmarks;
                 
-                ctx.strokeStyle = '#3b82f6';
-                ctx.lineWidth = 2;
+                // Scale factor for coordinates (assuming video is scaled to fit canvas)
+                const scaleX = canvas.width / video.videoWidth;
+                const scaleY = canvas.height / video.videoHeight;
+                
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 3;
+                ctx.fillStyle = '#00ff00';
                 
                 // Draw hand skeleton
                 const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
                 
                 connections.forEach(([i,j]) => {
                     ctx.beginPath();
-                    ctx.moveTo(landmarks[i][0], landmarks[i][1]);
-                    ctx.lineTo(landmarks[j][0], landmarks[j][1]);
+                    ctx.moveTo(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY);
+                    ctx.lineTo(landmarks[j][0] * scaleX, landmarks[j][1] * scaleY);
                     ctx.stroke();
                 });
                 
+                // Draw landmark points
                 landmarks.forEach(point => {
-                    ctx.fillStyle = '#3b82f6';
                     ctx.beginPath();
-                    ctx.arc(point[0], point[1], 3, 0, Math.PI * 2);
+                    ctx.arc(point[0] * scaleX, point[1] * scaleY, 4, 0, Math.PI * 2);
                     ctx.fill();
                 });
                 
@@ -74,14 +87,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     updateDisplay(data.emoji, data.label);
                     highlightGesture(gesture);
                     speak(data.speak);
+                    statusText.textContent = `Gesture: ${data.label}`;
+                    statusText.style.color = '#00ff00';
                     if (socket) socket.emit('gesture', { gesture });
                     
                     clearTimeout(gestureTimeout);
                     gestureTimeout = setTimeout(() => {
                         lastGesture = '';
                         clearHighlight();
+                        statusText.textContent = 'Menunggu deteksi...';
+                        statusText.style.color = '#666';
                     }, 1500);
                 }
+            } else {
+                // No hands detected - draw a subtle indicator
+                statusText.textContent = 'Tidak ada tangan';
+                statusText.style.color = '#666';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.font = '16px Arial';
+                ctx.fillText('No hands detected', 10, 30);
             }
         } catch (error) {
             console.error('Error in detection:', error);
@@ -243,6 +267,18 @@ document.addEventListener('DOMContentLoaded', function() {
         u.lang = 'id-ID';
         u.rate = 1.2;
         window.speechSynthesis.speak(u);
+    }
+
+    function highlightGesture(gesture) {
+        document.querySelectorAll('.gesture-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.gesture === gesture);
+        });
+    }
+
+    function clearHighlight() {
+        document.querySelectorAll('.gesture-item').forEach(el => {
+            el.classList.remove('active');
+        });
     }
 
     startBtn.addEventListener('click', startCamera);
