@@ -24,13 +24,11 @@ document.addEventListener('DOMContentLoaded', function() {
     let socket = null;
     let animationId = null;
     let lastDetectionTime = 0;
-    const DETECTION_INTERVAL = 300;
-    const MAX_WIDTH = 240;
-    const MAX_HEIGHT = 180;
-    let skipFrame = 0;
+    const DETECTION_INTERVAL = 400;
+    let isProcessing = false;
 
     const gestureData = {
-        'SHAKA': { emoji: '🤙', label: 'Call Me', speak: 'Call Me' },
+        'SHAKA': { emoji: '🤙', label: 'Call Me Farel', speak: 'Call Me Farel' },
         'PALM': { emoji: '🖐', label: 'Halo', speak: 'Halo' },
         'STOP': { emoji: '✋', label: 'Stop', speak: 'Stop' },
         'OK': { emoji: '👌', label: 'OK', speak: 'Oke' },
@@ -43,53 +41,31 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     async function detect() {
-        if (!isRunning || !detector) return;
+        if (!isRunning || !detector || isProcessing) {
+            animationId = requestAnimationFrame(detect);
+            return;
+        }
 
         const now = Date.now();
         if (now - lastDetectionTime < DETECTION_INTERVAL) {
             animationId = requestAnimationFrame(detect);
             return;
         }
+
+        isProcessing = true;
         lastDetectionTime = now;
 
-        skipFrame++;
-        if (skipFrame % 2 !== 0) {
-            animationId = requestAnimationFrame(detect);
-            return;
-        }
-
         try {
-            const predictions = await detector.estimateHands(video, false);
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const predictions = await detector.estimateHands(video, false);
 
             if (predictions.length > 0) {
                 statusText.textContent = 'Tangan terdeteksi';
                 statusText.style.color = '#00ff00';
                 const landmarks = predictions[0].landmarks;
 
-                const scaleX = canvas.width / video.videoWidth;
-                const scaleY = canvas.height / video.videoHeight;
-
-                ctx.strokeStyle = '#00ff00';
-                ctx.lineWidth = 1;
-                ctx.fillStyle = '#00ff00';
-
-                const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
-
-                ctx.beginPath();
-                connections.forEach(([i,j]) => {
-                    ctx.moveTo(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY);
-                    ctx.lineTo(landmarks[j][0] * scaleX, landmarks[j][1] * scaleY);
-                });
-                ctx.stroke();
-
-                for (let i = 0; i < landmarks.length; i++) {
-                    ctx.beginPath();
-                    ctx.arc(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
+                drawSkeleton(landmarks);
 
                 const gesture = detectGesture(landmarks);
 
@@ -117,13 +93,43 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Error in detection:', error);
+        } finally {
+            isProcessing = false;
         }
 
         animationId = requestAnimationFrame(detect);
     }
 
+    function drawSkeleton(landmarks) {
+        const scaleX = canvas.width / video.videoWidth;
+        const scaleY = canvas.height / video.videoHeight;
+
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = '#00ff00';
+
+        const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
+
+        ctx.beginPath();
+        for (let k = 0; k < connections.length; k++) {
+            const i = connections[k][0];
+            const j = connections[k][1];
+            ctx.moveTo(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY);
+            ctx.lineTo(landmarks[j][0] * scaleX, landmarks[j][1] * scaleY);
+        }
+        ctx.stroke();
+
+        for (let i = 0; i < landmarks.length; i++) {
+            ctx.beginPath();
+            ctx.arc(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
     function getDistance(p1, p2) {
-        return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
+        const dx = p1[0] - p2[0];
+        const dy = p1[1] - p2[1];
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
     function detectGesture(landmarks) {
@@ -186,9 +192,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { 
                     facingMode: facingMode, 
-                    width: { ideal: MAX_WIDTH, max: MAX_WIDTH },
-                    height: { ideal: MAX_HEIGHT, max: MAX_HEIGHT },
-                    frameRate: { ideal: 10, max: 15 }
+                    width: { ideal: 320 },
+                    height: { ideal: 240 },
+                    frameRate: { ideal: 12, max: 15 }
                 },
                 audio: false
             });
@@ -197,8 +203,8 @@ document.addEventListener('DOMContentLoaded', function() {
             video.srcObject = stream;
 
             video.onloadedmetadata = () => {
-                canvas.width = MAX_WIDTH;
-                canvas.height = MAX_HEIGHT;
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
                 isRunning = true;
                 placeholder.classList.add('hidden');
                 startBtn.classList.add('hidden');
