@@ -22,9 +22,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastGesture = '';
     let gestureTimeout = null;
     let socket = null;
+    let animationId = null;
+    let lastDetectionTime = 0;
+    const DETECTION_INTERVAL = 300;
+    const MAX_WIDTH = 240;
+    const MAX_HEIGHT = 180;
+    let skipFrame = 0;
 
     const gestureData = {
-        'SHAKA': { emoji: '🤙', label: 'Call Me Farel', speak: 'Call Me Farel' },
+        'SHAKA': { emoji: '🤙', label: 'Call Me', speak: 'Call Me' },
         'PALM': { emoji: '🖐', label: 'Halo', speak: 'Halo' },
         'STOP': { emoji: '✋', label: 'Stop', speak: 'Stop' },
         'OK': { emoji: '👌', label: 'OK', speak: 'Oke' },
@@ -38,56 +44,65 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function detect() {
         if (!isRunning || !detector) return;
-        
-        try {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
+        const now = Date.now();
+        if (now - lastDetectionTime < DETECTION_INTERVAL) {
+            animationId = requestAnimationFrame(detect);
+            return;
+        }
+        lastDetectionTime = now;
+
+        skipFrame++;
+        if (skipFrame % 2 !== 0) {
+            animationId = requestAnimationFrame(detect);
+            return;
+        }
+
+        try {
             const predictions = await detector.estimateHands(video, false);
-            
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
             if (predictions.length > 0) {
-                console.log('Hand detected with', predictions[0].landmarks.length, 'landmarks');
                 statusText.textContent = 'Tangan terdeteksi';
                 statusText.style.color = '#00ff00';
                 const landmarks = predictions[0].landmarks;
-                
+
                 const scaleX = canvas.width / video.videoWidth;
                 const scaleY = canvas.height / video.videoHeight;
-                
+
                 ctx.strokeStyle = '#00ff00';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 1;
                 ctx.fillStyle = '#00ff00';
-                
-                // Draw hand skeleton
+
                 const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
-                
+
+                ctx.beginPath();
                 connections.forEach(([i,j]) => {
-                    ctx.beginPath();
                     ctx.moveTo(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY);
                     ctx.lineTo(landmarks[j][0] * scaleX, landmarks[j][1] * scaleY);
-                    ctx.stroke();
                 });
-                
-                // Draw landmark points
-                landmarks.forEach(point => {
+                ctx.stroke();
+
+                for (let i = 0; i < landmarks.length; i++) {
                     ctx.beginPath();
-                    ctx.arc(point[0] * scaleX, point[1] * scaleY, 4, 0, Math.PI * 2);
+                    ctx.arc(landmarks[i][0] * scaleX, landmarks[i][1] * scaleY, 2, 0, Math.PI * 2);
                     ctx.fill();
-                });
-                
+                }
+
                 const gesture = detectGesture(landmarks);
-                
+
                 if (gesture && gesture !== lastGesture) {
                     lastGesture = gesture;
                     const data = gestureData[gesture];
                     updateDisplay(data.emoji, data.label);
                     highlightGesture(gesture);
                     speak(data.speak);
-                    statusText.textContent = `Gesture: ${data.label}`;
+                    statusText.textContent = 'Gesture: ' + data.label;
                     statusText.style.color = '#00ff00';
                     if (socket) socket.emit('gesture', { gesture });
-                    
+
                     clearTimeout(gestureTimeout);
                     gestureTimeout = setTimeout(() => {
                         lastGesture = '';
@@ -97,81 +112,55 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 1500);
                 }
             } else {
-                // No hands detected - draw a subtle indicator
                 statusText.textContent = 'Tidak ada tangan';
                 statusText.style.color = '#666';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                ctx.font = '16px Arial';
-                ctx.fillText('No hands detected', 10, 30);
             }
         } catch (error) {
             console.error('Error in detection:', error);
         }
-        
-        requestAnimationFrame(detect);
+
+        animationId = requestAnimationFrame(detect);
     }
 
     function getDistance(p1, p2) {
         return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
     }
 
-    function isExtended(tip, pip, wrist) {
-        return getDistance(tip, wrist) > getDistance(pip, wrist);
-    }
-
     function detectGesture(landmarks) {
         const wrist = landmarks[0];
         const thumbTip = landmarks[4];
         const thumbIp = landmarks[3];
-        const thumbMcp = landmarks[2];
         const indexTip = landmarks[8];
         const indexPip = landmarks[6];
-        const indexMcp = landmarks[5];
         const middleTip = landmarks[12];
         const middlePip = landmarks[10];
-        const middleMcp = landmarks[9];
         const ringTip = landmarks[16];
         const ringPip = landmarks[14];
-        const ringMcp = landmarks[13];
         const pinkyTip = landmarks[20];
         const pinkyPip = landmarks[18];
-        const pinkyMcp = landmarks[17];
-        
-        // Check if finger is extended (tip is above PIP joint relative to wrist)
+
         const isFingerExtended = (tip, pip) => tip[1] < pip[1];
-        
-        const thumbExt = thumbTip[0] > thumbIp[0]; // Thumb extended to the right
+
+        const thumbExt = thumbTip[0] > thumbIp[0];
         const indexExt = isFingerExtended(indexTip, indexPip);
         const middleExt = isFingerExtended(middleTip, middlePip);
         const ringExt = isFingerExtended(ringTip, ringPip);
         const pinkyExt = isFingerExtended(pinkyTip, pinkyPip);
-        
-        // Count extended fingers
-        const extendedCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
-        
-        // Special gestures
+
         if (thumbExt && pinkyExt && !indexExt && !middleExt && !ringExt) return 'SHAKA';
         if (thumbExt && indexExt && middleExt && ringExt && pinkyExt) return 'PALM';
         if (!thumbExt && indexExt && middleExt && ringExt && pinkyExt) return 'STOP';
         if (getDistance(thumbTip, indexTip) < 40 && middleExt && ringExt && pinkyExt) return 'OK';
-        
-        // Thumbs up/down
+
         if (!indexExt && !middleExt && !ringExt && !pinkyExt) {
             return thumbTip[1] < wrist[1] ? 'THUMBS_UP' : 'THUMBS_DOWN';
         }
-        
-        // Fist
+
         if (!thumbExt && !indexExt && !middleExt && !ringExt && !pinkyExt) return 'FIST';
-        
-        // Pointing
         if (indexExt && !middleExt && !ringExt && !pinkyExt) return 'POINTING';
-        
-        // Peace
         if (indexExt && middleExt && !ringExt && !pinkyExt) return 'PEACE';
-        
-        // Love you
         if (indexExt && !middleExt && !ringExt && pinkyExt) return 'LOVE_YOU';
-        
+
         return null;
     }
 
@@ -181,18 +170,11 @@ document.addEventListener('DOMContentLoaded', function() {
             errorText.classList.add('hidden');
             retryBtn.classList.add('hidden');
 
-            // Initialize TensorFlow with simpler approach
-            console.log('Initializing TensorFlow...');
             await tf.ready();
-            console.log('TensorFlow initialized successfully');
-            
-            console.log('Loading hand detection model...');
             detector = await handpose.load();
-            
+
             loading.classList.add('hidden');
-            console.log('Hand detection model loaded successfully');
         } catch (err) {
-            console.error('Initialization error:', err);
             errorText.textContent = 'Error initializing hand detection: ' + err.message;
             errorText.classList.remove('hidden');
             retryBtn.classList.remove('hidden');
@@ -202,16 +184,21 @@ document.addEventListener('DOMContentLoaded', function() {
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facingMode, width: 320, height: 240 },
+                video: { 
+                    facingMode: facingMode, 
+                    width: { ideal: MAX_WIDTH, max: MAX_WIDTH },
+                    height: { ideal: MAX_HEIGHT, max: MAX_HEIGHT },
+                    frameRate: { ideal: 10, max: 15 }
+                },
                 audio: false
             });
-            
+
             currentStream = stream;
             video.srcObject = stream;
-            
+
             video.onloadedmetadata = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width = MAX_WIDTH;
+                canvas.height = MAX_HEIGHT;
                 isRunning = true;
                 placeholder.classList.add('hidden');
                 startBtn.classList.add('hidden');
@@ -225,6 +212,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function stopCamera() {
         isRunning = false;
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+        }
         if (currentStream) {
             currentStream.getTracks().forEach(t => t.stop());
             currentStream = null;
@@ -264,12 +255,6 @@ document.addEventListener('DOMContentLoaded', function() {
         u.lang = 'id-ID';
         u.rate = 1.2;
         window.speechSynthesis.speak(u);
-    }
-
-    function highlightGesture(gesture) {
-        document.querySelectorAll('.gesture-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.gesture === gesture);
-        });
     }
 
     function clearHighlight() {
